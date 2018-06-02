@@ -6,6 +6,7 @@ const fetch = require("./fetch");
 const downloadFile = require("./downloadFile");
 
 const DEFAULT_FETCH_DELAY = 8000;
+const FRONTEND_MASTERS_API_URL = "https://api.frontendmasters.com/v1/kabuki";
 
 const withColor = color => message => `\x1b[1;${color}m${message}\x1b[0m`;
 const withRed = withColor(31);
@@ -34,8 +35,14 @@ const downloadCourse = async ({
       throw "authentication missing! either pass the cookie parameter or set a FMDL_COOKIE environment variable!";
     }
     logger(withYellow(`fetching ${courseSlug} course data...`));
-    const { title, lessonHashes, lessonSlugs, lessonData } = await fetch({
-      url: `https://api.frontendmasters.com/v1/kabuki/courses/${courseSlug}`,
+    const {
+      title,
+      lessonHashes,
+      lessonSlugs,
+      lessonData,
+      hasWebVTT
+    } = await fetch({
+      url: `${FRONTEND_MASTERS_API_URL}/courses/${courseSlug}`,
       headers
     });
     const lessons = lessonHashes.map((lessonHash, index) => ({
@@ -54,15 +61,15 @@ const downloadCourse = async ({
         throw `missing sourceBase for ${slug}!`;
       }
       const paddedIndex = index.toString().padStart(3, "0");
-      const parentFolder = path.resolve(downloadFolder, title);
+      const parentFolder = path.resolve(downloadFolder, courseSlug);
       mkdirp.sync(parentFolder);
-      const savePath = path.resolve(
+      const videoPath = path.resolve(
         parentFolder,
         `${paddedIndex}-${slug}.${fileFormat}`
       );
       const prefix = `[${index + 1}/${lessons.length}]`;
 
-      if (fs.existsSync(savePath)) {
+      if (fs.existsSync(videoPath)) {
         logger(`${withGreen(prefix)} ${slug} already downloaded, skipping...`);
       } else {
         await delay({
@@ -85,10 +92,40 @@ const downloadCourse = async ({
           name: slug,
           url,
           headers,
-          savePath,
+          savePath: videoPath,
           output
         });
         logger(`${withGreen(prefix)} ${slug} downloaded`);
+      }
+      if (hasWebVTT) {
+        const vttPath = path.resolve(
+          parentFolder,
+          `${paddedIndex}-${slug}.vtt`
+        );
+        if (fs.existsSync(vttPath)) {
+          logger(
+            withGreen(`subtitles for ${slug} already downloaded, skipping...`)
+          );
+        } else {
+          const vttUrl = `${FRONTEND_MASTERS_API_URL}/transcripts/${hash}.vtt`;
+
+          await delay({
+            duration: delayBetweenFetch,
+            message: withYellow(
+              `waiting before downloading subtitles for ${slug}`
+            ),
+            output
+          });
+          await downloadFile({
+            prefix: withYellow(prefix),
+            name: `subtitles for ${slug}`,
+            url: vttUrl,
+            headers,
+            savePath: vttPath,
+            output
+          });
+          logger(withGreen(`subtitles for ${slug} downloaded`));
+        }
       }
     }
 
