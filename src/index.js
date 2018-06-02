@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const url = require("url");
 const mkdirp = require("mkdirp");
 const delay = require("./delay");
 const fetch = require("./fetch");
@@ -35,23 +36,31 @@ const downloadCourse = async ({
       throw "authentication missing! either pass the cookie parameter or set a FMDL_COOKIE environment variable!";
     }
     logger(withYellow(`fetching ${courseSlug} course data...`));
+    const courseData = await fetch({
+      url: `${FRONTEND_MASTERS_API_URL}/courses/${courseSlug}`,
+      headers
+    });
     const {
       title,
       lessonHashes,
       lessonSlugs,
       lessonData,
-      hasWebVTT
-    } = await fetch({
-      url: `${FRONTEND_MASTERS_API_URL}/courses/${courseSlug}`,
-      headers
-    });
+      hasWebVTT,
+      resources
+    } = courseData;
     const lessons = lessonHashes.map((lessonHash, index) => ({
       index,
       hash: lessonHash,
       slug: lessonSlugs[index],
       ...lessonData[lessonHash]
     }));
+
     logger(`starting downloads for ${title}...`);
+    const parentFolder = path.resolve(downloadFolder, courseSlug);
+    mkdirp.sync(parentFolder);
+
+    const courseJsonPath = path.resolve(parentFolder, "course.json");
+    fs.writeFileSync(courseJsonPath, JSON.stringify(courseData, null, 2));
 
     for (const { index, hash, slug, sourceBase } of lessons) {
       if (!slug) {
@@ -61,8 +70,6 @@ const downloadCourse = async ({
         throw `missing sourceBase for ${slug}!`;
       }
       const paddedIndex = index.toString().padStart(3, "0");
-      const parentFolder = path.resolve(downloadFolder, courseSlug);
-      mkdirp.sync(parentFolder);
       const videoPath = path.resolve(
         parentFolder,
         `${paddedIndex}-${slug}.${fileFormat}`
@@ -125,6 +132,25 @@ const downloadCourse = async ({
             output
           });
           logger(withGreen(`subtitles for ${slug} downloaded`));
+        }
+      }
+    }
+    for (const { url: resourceUrl } of resources) {
+      const { path: resourcePath } = url.parse(resourceUrl);
+      const resourceFile = path.basename(resourcePath);
+      if (path.extname(resourceFile)) {
+        const resourcePath = path.resolve(parentFolder, resourceFile);
+        if (fs.existsSync(resourcePath)) {
+          logger(withGreen(`${resourceFile} already downloaded, skipping...`));
+        } else {
+          await downloadFile({
+            name: resourceFile,
+            url: resourceUrl,
+            headers,
+            savePath: resourcePath,
+            output
+          });
+          logger(withGreen(`${resourceFile} downloaded`));
         }
       }
     }
