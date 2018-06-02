@@ -17,6 +17,7 @@ Here are the available command line arguments:
 | downloadFolder    | Location for storing course downloads                                                                      | `Downloads`                        |
 | delayBetweenFetch | Milliseconds to wait between calls to `https://api.frontendmasters.com` to avoid temorary rate limit ban   | `8000` (8 seconds)                 |
 | output            | Where to write progress/error updates during download process (only supported with programmatic API)       | `process.stdout`                   |
+
 Each argument is passed in the form `--argument=value`. Here is an example:
 
 ```console
