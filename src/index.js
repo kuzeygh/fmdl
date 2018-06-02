@@ -34,7 +34,7 @@ const downloadCourse = async ({
       throw "authentication missing! either pass the cookie parameter or set a FMDL_COOKIE environment variable!";
     }
     logger(withYellow(`fetching ${courseSlug} course data...`));
-    const { lessonHashes, lessonSlugs, lessonData } = await fetch({
+    const { title, lessonHashes, lessonSlugs, lessonData } = await fetch({
       url: `https://api.frontendmasters.com/v1/kabuki/courses/${courseSlug}`,
       headers
     });
@@ -44,7 +44,7 @@ const downloadCourse = async ({
       slug: lessonSlugs[index],
       ...lessonData[lessonHash]
     }));
-    logger("starting downloads...");
+    logger(`starting downloads for ${title}...`);
 
     for (const { index, hash, slug, sourceBase } of lessons) {
       if (!slug) {
@@ -54,7 +54,7 @@ const downloadCourse = async ({
         throw `missing sourceBase for ${slug}!`;
       }
       const paddedIndex = index.toString().padStart(3, "0");
-      const parentFolder = path.resolve(downloadFolder, courseSlug);
+      const parentFolder = path.resolve(downloadFolder, title);
       mkdirp.sync(parentFolder);
       const savePath = path.resolve(
         parentFolder,
@@ -92,7 +92,7 @@ const downloadCourse = async ({
       }
     }
 
-    logger(withGreen(`all done downloading ${courseSlug}!`));
+    logger(withGreen(`all done downloading ${title}!`));
   } catch (e) {
     logger(`${withRed("problem during course download:")}\n  ${e}`);
   }
