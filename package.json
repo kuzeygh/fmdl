@@ -1,0 +1,52 @@
+{
+  "name": "fmdl",
+  "version": "0.0.1",
+  "description": "Frontend Masters course DownLoader",
+  "main": "src/index.js",
+  "bin": {
+    "fmdl": "./src/fmdl.js"
+  },
+  "engines": {
+    "node": ">=8.0"
+  },
+  "dependencies": {
+    "mkdirp": "=0.5.1",
+    "progress": "=2.0.0"
+  },
+  "devDependencies": {
+    "eslint": "=4.19.1",
+    "prettier": "=1.13.4"
+  },
+  "scripts": {
+    "clean": "npx rimraf node_modules",
+    "format": "prettier --write src/**/*.js",
+    "format:check": "prettier --list-different src/**/*.js",
+    "lint": "eslint src/**/*.js",
+    "check": "npm run format:check && npm run lint",
+    "prepare": "npm run check",
+    "release": "./pre-flight-tests && npm run clean && npm i && git tag $npm_package_version && git push && git push --tags && npm publish"
+  },
+  "eslintConfig": {
+    "extends": "eslint:recommended",
+    "parserOptions": {
+      "ecmaVersion": 9
+    },
+    "env": {
+      "node": true,
+      "es6": true
+    },
+    "rules": {
+      "no-use-before-define": "error"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okwolf/fmdl.git"
+  },
+  "author": "Wolfgang Wedemeyer <wolf@okwolf.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/okwolf/fmdl/issues"
+  },
+  "homepage": "https://github.com/okwolf/fmdl"
+}
