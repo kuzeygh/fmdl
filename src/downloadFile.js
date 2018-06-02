@@ -21,20 +21,23 @@ const downloadFile = ({
         if (res.statusCode >= 300) {
           reject(res.statusMessage);
         } else {
-          const progressBar = new ProgressBar(
-            `${prefix} Downloading ${name} [:bar] :percent :etas`,
-            {
-              stream: output,
-              total: parseInt(res.headers["content-length"]),
-              clear: true,
-              incomplete: " ",
-              complete: "░"
-            }
-          );
+          if (res.headers["content-length"]) {
+            const progressBar = new ProgressBar(
+              `${prefix} Downloading ${name} [:bar] :percent :etas`,
+              {
+                stream: output,
+                total: parseInt(res.headers["content-length"]),
+                clear: true,
+                incomplete: " ",
+                complete: "░"
+              }
+            );
 
-          res.on("data", chunk => {
-            progressBar.tick(chunk.length);
-          });
+            res.on("data", chunk => {
+              progressBar.tick(chunk.length);
+            });
+          }
+
           res.pipe(fs.createWriteStream(savePath));
           res.on("end", resolve);
         }
