@@ -33,7 +33,7 @@ const downloadCourse = async ({
     if (!cookie) {
       throw "authentication missing! either pass the cookie parameter or set a FMDL_COOKIE environment variable!";
     }
-    logger(`fetching ${courseSlug} course data...`);
+    logger(withYellow(`fetching ${courseSlug} course data...`));
     const { lessonHashes, lessonSlugs, lessonData } = await fetch({
       url: `https://api.frontendmasters.com/v1/kabuki/courses/${courseSlug}`,
       headers
@@ -92,7 +92,7 @@ const downloadCourse = async ({
       }
     }
 
-    logger(`all done downloading ${courseSlug}!`);
+    logger(withGreen(`all done downloading ${courseSlug}!`));
   } catch (e) {
     logger(`${withRed("problem during course download:")}\n  ${e}`);
   }
