@@ -7,7 +7,7 @@ const delay = ({ duration, message = "Waiting", output = process.stdout }) =>
     let delayedFor = 0;
     const progressBar = new ProgressBar(`${message}... [:bar] :etas`, {
       stream: output,
-      total: duration,
+      total: parseInt(duration, 10),
       clear: true,
       incomplete: " "
     });
