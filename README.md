@@ -48,4 +48,4 @@ The `options` object has the same properties and values as the arguments support
 
 ## License
 
-FMDL is MIT licensed. See [LICENSE](LICENSE.md).
+FMDL is MIT licensed. See [LICENSE](LICENSE.md). This project exists purely for educational/personal use and is not to be used for violating Frontend Master's terms and conditions.
