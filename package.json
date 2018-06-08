@@ -1,6 +1,6 @@
 {
   "name": "fmdl",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Frontend Masters course DownLoader",
   "main": "src/index.js",
   "bin": {
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "mkdirp": "=0.5.1",
+    "moment": "=2.22.2",
     "progress": "=2.0.0"
   },
   "devDependencies": {

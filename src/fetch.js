@@ -1,5 +1,6 @@
 const url = require("url");
 const https = require("https");
+const zlib = require("zlib");
 
 const fetch = ({ url: requestUrl, headers }) =>
   new Promise((resolve, reject) => {
@@ -17,9 +18,17 @@ const fetch = ({ url: requestUrl, headers }) =>
             responseData.push(chunk);
           });
           res.on("end", () => {
-            const responseString = Buffer.concat(responseData).toString("utf8");
-            const responseJson = JSON.parse(responseString);
-            resolve(responseJson);
+            const reponseBody = Buffer.concat(responseData);
+            if (res.headers["content-encoding"] == "gzip") {
+              zlib.gunzip(reponseBody, (err, unzipped) => {
+                const responseJson = JSON.parse(unzipped);
+                resolve(responseJson);
+              });
+            } else {
+              const responseString = reponseBody.toString("utf8");
+              const responseJson = JSON.parse(responseString);
+              resolve(responseJson);
+            }
           });
         }
       }

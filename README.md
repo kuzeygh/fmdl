@@ -8,14 +8,14 @@
 
 Here are the available command line arguments:
 
-| Argument          | Usage           | Default        |
-|-------------------|-----------------|----------------|
+| Argument          | Usage                                                                                                      | Default                            |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | courseSlug        | Short name for course to download. The part after `https://frontendmasters.com/courses/` in the course URL | None, required                     |
 | cookie            | Used for authentication with `https://frontendmasters.com`                                                 | `FMDL_COOKIE` environment variable |
 | resolution        | Vertical resolution for videos. Allowed values: [`1080`, `720`]                                            | `1080`                             |
 | fileFormat        | File format for videos. Allowed values: [`webm`, `mp4`]                                                    | `webm`                             |
 | downloadFolder    | Location for storing course downloads                                                                      | `Downloads`                        |
-| delayBetweenFetch | Milliseconds to wait between calls to `https://api.frontendmasters.com` to avoid temorary rate limit ban   | `8000` (8 seconds)                 |
+| delayBetweenFetch | Minimum milliseconds to wait between calls to `https://api.frontendmasters.com` to avoid rate limit ban    | `10000` (10 seconds)               |
 | output            | Where to write progress/error updates during download process (only supported with programmatic API)       | `process.stdout`                   |
 
 Each argument is passed in the form `--argument=value`. Here is an example:
