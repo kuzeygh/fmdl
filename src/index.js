@@ -288,8 +288,9 @@ const setUpProxy = ({ proxy, downloadFolder }) => {
 
 module.exports = ({ downloadFolder = "Downloads", debug } = {}) =>
   getPort().then(port => {
+    const sslCaDir = path.resolve(__dirname, "../ssl");
     const proxy = Proxy();
     setUpProxy({ proxy, downloadFolder });
-    proxy.listen({ port, silent: !debug, sslCaDir: "ssl", keepAlive: false });
+    proxy.listen({ port, silent: !debug, sslCaDir, keepAlive: false });
     return { port };
   });
