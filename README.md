@@ -2,26 +2,25 @@
 
 [![npm version](https://img.shields.io/npm/v/fmdl.svg?style=flat)](https://www.npmjs.com/package/fmdl)
 
+This downloader starts an HTTP proxy server that intercepts course files while playing and saves a copy locally. Setting up the proxy configuartion for your environment is automated for Windows and manual instructions are provided for any other OS.
+
+Confirmed working with `Node.js 8.x`. Has [issues](https://github.com/joeferner/node-http-mitm-proxy/issues/165) running on `Node.js 10.x`.
+
 ## Usage
 
 ### Command Line
 
 Here are the available command line arguments:
 
-| Argument          | Usage                                                                                                      | Default                            |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| courseSlug        | Short name for course to download. The part after `https://frontendmasters.com/courses/` in the course URL | None, required                     |
-| cookie            | Used for authentication with `https://frontendmasters.com`                                                 | `FMDL_COOKIE` environment variable |
-| resolution        | Vertical resolution for videos. Allowed values: [`1080`, `720`]                                            | `1080`                             |
-| fileFormat        | File format for videos. Allowed values: [`webm`, `mp4`]                                                    | `webm`                             |
-| downloadFolder    | Location for storing course downloads                                                                      | `Downloads`                        |
-| delayBetweenFetch | Minimum milliseconds to wait between calls to `https://api.frontendmasters.com` to avoid rate limit ban    | `10000` (10 seconds)               |
-| output            | Where to write progress/error updates during download process (only supported with programmatic API)       | `process.stdout`                   |
+| Argument       | Usage                                 | Default     |
+| -------------- | ------------------------------------- | ----------- |
+| downloadFolder | Location for storing course downloads | `Downloads` |
+| debug          | Enable extra debugging output         | `false`     |
 
 Each argument is passed in the form `--argument=value`. Here is an example:
 
 ```console
-npx fmdl --courseSlug=testing-react --fileFormat=mp4 --resolution=720 --downloadFolder=/tmp/Courses
+npx fmdl --downloadFolder=/tmp/Courses --debug
 ```
 
 ### API

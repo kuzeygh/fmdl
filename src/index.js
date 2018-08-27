@@ -1,183 +1,295 @@
-const fs = require("fs");
 const path = require("path");
 const url = require("url");
+const https = require("https");
+const querystring = require("querystring");
+const fs = require("fs");
 const mkdirp = require("mkdirp");
-const moment = require("moment");
-const delay = require("./delay");
-const fetch = require("./fetch");
-const downloadFile = require("./downloadFile");
+const Proxy = require("http-mitm-proxy");
+const { get, omit } = require("lodash/fp");
+const getPort = require("./getPort");
+const { withGreen, withYellow, withRed } = require("./colors");
 
-const MINIMUM_FETCH_DELAY = 10000;
-const FRONTEND_MASTERS_API_URL = "https://api.frontendmasters.com/v1/kabuki";
+const API_HOST = "frontendmasters.com";
+const API_PREFIX = "/v1/kabuki";
 
-const withColor = color => message => `\x1b[1;${color}m${message}\x1b[0m`;
-const withRed = withColor(31);
-const withGreen = withColor(32);
-const withYellow = withColor(33);
+const isApiHost = host => host.includes(API_HOST);
 
-const diffMsFromTimestamp = timestamp => {
-  const timeFormat = "HH:mm:ss";
-  const [fromTime, toTime] = timestamp.split(" - ");
-  const timeDiff = moment(toTime, timeFormat).diff(
-    moment(fromTime, timeFormat)
-  );
-  return timeDiff;
+const courseData = {};
+const downloadSignatures = {};
+const warnedDownloadUrls = {};
+
+const logForLessonHash = hash => logger => {
+  const lessonData = (courseData.lessonData || {})[hash] || {};
+  const prefix = `[${lessonData.index + 1}/${courseData.lessonCount}]`;
+  console.log(...logger({ ...lessonData, prefix }));
 };
 
-const downloadCourse = async ({
-  courseSlug,
-  cookie = process.env.FMDL_COOKIE,
-  resolution = 1080,
-  fileFormat = "webm",
-  downloadFolder = "Downloads",
-  delayBetweenFetch = MINIMUM_FETCH_DELAY,
-  output = process.stdout
-} = {}) => {
-  const logger = message => output.write(`${message}\n`);
-  const headers = {
-    cookie,
-    origin: "https://frontendmasters.com",
-    authority: "api.frontendmasters.com",
-    accept: "application/json, text/*",
-    "accept-encoding": "gzip, deflate, br",
-    "accept-language": "en-US,en;q=0.9",
-    referer: `https://frontendmasters.com/courses/${courseSlug}/`,
-    "user-agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.79 Safari/537.36"
-  };
-  try {
-    if (!courseSlug) {
-      throw "courseSlug is required!";
-    }
-    if (!cookie) {
-      throw "authentication missing! either pass the cookie parameter or set a FMDL_COOKIE environment variable!";
-    }
-    logger(withYellow(`fetching ${courseSlug} course data...`));
-    const courseData = await fetch({
-      url: `${FRONTEND_MASTERS_API_URL}/courses/${courseSlug}`,
-      headers
+const filenameForHash = hash => {
+  const { index, slug } = (courseData.lessonData || {})[hash] || {};
+  const paddedIndex = (index + 1).toString().padStart(3, "0");
+  return `${paddedIndex}-${slug}`;
+};
+
+const downloadToBuffer = request =>
+  new Promise(resolve => {
+    const chunks = [];
+    request.onResponseData((_, chunk, callback) => {
+      chunks.push(chunk);
+      return callback(null, chunk);
     });
-    const {
-      title,
-      lessonHashes,
-      lessonSlugs,
-      lessonData,
-      hasWebVTT,
-      resources
-    } = courseData;
-    const lessons = lessonHashes.map((lessonHash, index) => ({
-      index,
-      hash: lessonHash,
-      slug: lessonSlugs[index],
-      ...lessonData[lessonHash]
-    }));
+    request.onResponseEnd((_, callback) => {
+      const body = Buffer.concat(chunks);
+      resolve(body);
+      return callback();
+    });
+  });
 
-    logger(`starting downloads for ${title}...`);
-    const parentFolder = path.resolve(downloadFolder, courseSlug);
-    mkdirp.sync(parentFolder);
-
-    const courseJsonPath = path.resolve(parentFolder, "course.json");
-    fs.writeFileSync(courseJsonPath, JSON.stringify(courseData, null, 2));
-
-    for (const { index, hash, slug, timestamp } of lessons) {
-      if (!slug) {
-        throw `missing slug for ${hash}[${index}]!`;
-      }
-      const paddedIndex = index.toString().padStart(3, "0");
-      const videoPath = path.resolve(
-        parentFolder,
-        `${paddedIndex}-${slug}.${fileFormat}`
-      );
-      const prefix = `[${index + 1}/${lessons.length}]`;
-
-      if (hasWebVTT) {
-        const vttPath = path.resolve(
-          parentFolder,
-          `${paddedIndex}-${slug}.vtt`
+const writeToFileIfNeeded = (buffer, filePath) =>
+  new Promise(resolve => {
+    fs.exists(filePath, exists => {
+      if (!exists) {
+        fs.writeFile(filePath, buffer, error =>
+          resolve({ error, wrote: true })
         );
-        if (fs.existsSync(vttPath)) {
-          logger(
-            withGreen(`subtitles for ${slug} already downloaded, skipping...`)
-          );
-        } else {
-          const vttUrl = `${FRONTEND_MASTERS_API_URL}/transcripts/${hash}.vtt`;
-
-          await delay({
-            duration: Math.random() * delayBetweenFetch,
-            message: withYellow(
-              `waiting before downloading subtitles for ${slug}`
-            ),
-            output
-          });
-          await downloadFile({
-            prefix: withYellow(prefix),
-            name: `subtitles for ${slug}`,
-            url: vttUrl,
-            headers,
-            savePath: vttPath,
-            output
-          });
-          logger(withGreen(`subtitles for ${slug} downloaded`));
-        }
-      }
-
-      if (fs.existsSync(videoPath)) {
-        logger(`${withGreen(prefix)} ${slug} already downloaded, skipping...`);
       } else {
-        await delay({
-          duration: Math.random() * delayBetweenFetch,
-          message: `${withYellow(prefix)} waiting before getting ${slug} url`,
-          output
-        });
-        const { url } = await fetch({
-          url: `${FRONTEND_MASTERS_API_URL}/video/${hash}/source?r=${resolution}&f=${fileFormat}`,
-          headers
-        });
-
-        await downloadFile({
-          prefix: withYellow(prefix),
-          name: slug,
-          url,
-          headers,
-          savePath: videoPath,
-          output
-        });
-        logger(`${withGreen(prefix)} ${slug} downloaded`);
-
-        const lengthMs = diffMsFromTimestamp(timestamp);
-        const additionalDelay = Math.random() * (lengthMs - delayBetweenFetch);
-        const totalDelay = delayBetweenFetch + additionalDelay;
-        await delay({
-          duration: totalDelay,
-          message: `${withYellow(prefix)} waiting after downloading ${slug}`,
-          output
-        });
+        resolve({ error: null, wrote: false });
       }
+    });
+  });
+
+const courseDataHandler = [
+  `${API_PREFIX}/courses/`,
+  ({ request, requestPath, courseSlug, courseFolder }) => {
+    if (courseSlug !== requestPath) {
+      console.error(
+        withRed(
+          `requested course data for ${requestPath} but the referer was for ${courseSlug}`
+        )
+      );
+    } else {
+      mkdirp.sync(courseFolder);
+      const courseJsonPath = path.resolve(courseFolder, "course.json");
+      downloadToBuffer(request).then(courseDataBuffer => {
+        const responseCourseData = JSON.parse(courseDataBuffer);
+        courseData.slug = responseCourseData.slug;
+        courseData.lessonData = responseCourseData.lessonData;
+        courseData.lessonCount = responseCourseData.lessonHashes.length;
+
+        writeToFileIfNeeded(courseDataBuffer, courseJsonPath).then(
+          ({ wrote }) => {
+            if (wrote) {
+              console.log(
+                withGreen(
+                  `downloaded course data for: ${responseCourseData.title}`
+                )
+              );
+            } else {
+              console.log(
+                withYellow(
+                  `course data already downloaded for: ${
+                    responseCourseData.title
+                  }`
+                )
+              );
+            }
+            console.log(`${courseData.lessonCount} lessons available`);
+          }
+        );
+      });
     }
-    for (const { url: resourceUrl } of resources) {
-      const { path: resourcePath } = url.parse(resourceUrl);
-      const resourceFile = path.basename(resourcePath);
-      if (path.extname(resourceFile)) {
-        const resourcePath = path.resolve(parentFolder, resourceFile);
-        if (fs.existsSync(resourcePath)) {
-          logger(withGreen(`${resourceFile} already downloaded, skipping...`));
-        } else {
-          await downloadFile({
-            name: resourceFile,
-            url: resourceUrl,
-            headers,
-            savePath: resourcePath,
-            output
-          });
-          logger(withGreen(`${resourceFile} downloaded`));
+  }
+];
+
+const videoUrlHandler = [
+  `${API_PREFIX}/video/`,
+  ({ request, requestPath }) => {
+    const [hash, source] = requestPath.split("/");
+    const { f: extension } = querystring.parse(source);
+    const lessonData = (courseData.lessonData || {})[hash];
+    if (!lessonData) {
+      console.error(withRed(`missing lesson data for ${hash}`));
+    } else {
+      const { index, slug, title } = lessonData;
+      downloadToBuffer(request).then(videoUrlBuffer => {
+        const { url: lessonUrl } = JSON.parse(videoUrlBuffer);
+        const parsedLessonUrl = url.parse(lessonUrl);
+        const { Signature } = querystring.parse(parsedLessonUrl.query);
+        downloadSignatures[Signature] = { hash, index, slug, title, extension };
+      });
+    }
+  }
+];
+
+const downloadToFile = ({
+  url: requestUrl,
+  headers,
+  hash,
+  filePath,
+  fileType
+}) => {
+  fs.exists(filePath, exists => {
+    if (exists) {
+      if (!warnedDownloadUrls[requestUrl]) {
+        logForLessonHash(hash)(({ prefix, title }) => [
+          withYellow(prefix),
+          `skipping ${fileType} for ${title}, already downloaded`
+        ]);
+        warnedDownloadUrls[requestUrl] = false;
+      }
+    } else {
+      logForLessonHash(hash)(({ prefix, title }) => [
+        withYellow(prefix),
+        `starting download of ${fileType} for ${title}...`
+      ]);
+      const req = https.request(
+        {
+          ...url.parse(`https://${headers.host}${requestUrl}`),
+          headers: omit(["range", "accept-encoding"])(headers),
+          rejectUnauthorized: false
+        },
+        res => {
+          if (res.statusCode >= 300) {
+            console.error(withRed(res.statusMessage));
+          } else {
+            res.pipe(fs.createWriteStream(filePath));
+            res.on("end", () => {
+              logForLessonHash(hash)(({ prefix, title }) => [
+                withGreen(prefix),
+                `finished downloading ${fileType} for ${title}`
+              ]);
+            });
+          }
         }
+      );
+      req.on("error", error => {
+        console.error(withRed(error));
+      });
+      req.end();
+    }
+  });
+};
+
+const transcriptHandler = [
+  `${API_PREFIX}/transcripts/`,
+  ({ request, requestPath, courseFolder }) => {
+    const [hash, extension] = requestPath.split(".");
+    const fileName = filenameForHash(hash);
+    const transcriptPath = path.resolve(
+      courseFolder,
+      `${fileName}.${extension}`
+    );
+
+    downloadToFile({
+      url: request.proxyToServerRequestOptions.path,
+      headers: request.proxyToServerRequestOptions.headers,
+      hash,
+      filePath: transcriptPath,
+      fileType: "transcript"
+    });
+  }
+];
+
+const fallbackHandler = [
+  "",
+  ({ request, requestPath, courseFolder }) => {
+    const parsedPath = url.parse(requestPath);
+    const { Signature } = querystring.parse(parsedPath.query);
+    if (Signature) {
+      const lessonData = downloadSignatures[Signature];
+      if (!lessonData) {
+        console.error(
+          withRed(`missing lesson data for download signature ${Signature}`)
+        );
+      } else {
+        const { hash, extension } = lessonData;
+        const fileName = filenameForHash(hash);
+        const videoPath = path.resolve(
+          courseFolder,
+          `${fileName}.${extension}`
+        );
+        downloadToFile({
+          url: request.proxyToServerRequestOptions.path,
+          headers: request.proxyToServerRequestOptions.headers,
+          hash,
+          filePath: videoPath,
+          fileType: "video"
+        });
       }
     }
+  }
+];
 
-    logger(withGreen(`all done downloading ${title}!`));
-  } catch (e) {
-    logger(`${withRed("problem during course download:")}\n  ${e}`);
+const handleResponse = ({
+  request,
+  referer = "/",
+  requestPath,
+  downloadFolder
+}) => {
+  const parsedReferer = url.parse(referer);
+  const [courseSlug, lessonSlug] = parsedReferer.path
+    .replace("/courses/", "")
+    .split("/");
+  if (courseSlug) {
+    const courseFolder = path.resolve(downloadFolder, courseSlug);
+
+    const [pathPrefix, handler = Function.prototype] =
+      [
+        courseDataHandler,
+        videoUrlHandler,
+        transcriptHandler,
+        fallbackHandler
+      ].find(([pathPrefix]) => requestPath.startsWith(pathPrefix)) || [];
+    handler({
+      request,
+      requestPath: requestPath.replace(pathPrefix, ""),
+      courseSlug,
+      lessonSlug,
+      courseFolder
+    });
   }
 };
 
-module.exports = downloadCourse;
+const handleRequest = ({ request, downloadFolder }) => {
+  const {
+    headers: { referer },
+    host,
+    path: requestPath
+  } = request.proxyToServerRequestOptions;
+
+  if (isApiHost(host)) {
+    request.onResponse((_, callback) => {
+      handleResponse({
+        request,
+        referer,
+        requestPath,
+        downloadFolder
+      });
+      return callback();
+    });
+  }
+};
+
+const setUpProxy = ({ proxy, downloadFolder }) => {
+  proxy.use(Proxy.gunzip);
+
+  proxy.onError(function(errorContext, err, errorKind) {
+    const url = get("clientToProxyRequest.url")(errorContext) || "";
+    if (isApiHost(url)) {
+      console.error(withRed(errorKind + " on " + url + ":", err));
+    }
+  });
+
+  proxy.onRequest((request, callback) => {
+    request.proxyToServerRequestOptions.rejectUnauthorized = false;
+    handleRequest({ request, downloadFolder });
+    return callback();
+  });
+};
+
+module.exports = ({ downloadFolder = "Downloads", debug } = {}) =>
+  getPort().then(port => {
+    const proxy = Proxy();
+    setUpProxy({ proxy, downloadFolder });
+    proxy.listen({ port, silent: !debug, sslCaDir: "ssl", keepAlive: false });
+    return { port };
+  });

@@ -1,22 +1,22 @@
 {
   "name": "fmdl",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Frontend Masters course DownLoader",
   "main": "src/index.js",
   "bin": {
     "fmdl": "./src/fmdl.js"
   },
   "engines": {
-    "node": ">=8.0"
+    "node": "=8.0"
   },
   "dependencies": {
-    "mkdirp": "=0.5.1",
-    "moment": "=2.22.2",
-    "progress": "=2.0.0"
+    "http-mitm-proxy": "=0.6.1",
+    "lodash": "=4.17.10",
+    "mkdirp": "=0.5.1"
   },
   "devDependencies": {
-    "eslint": "=4.19.1",
-    "prettier": "=1.13.4"
+    "eslint": "=5.4.0",
+    "prettier": "=1.14.2"
   },
   "scripts": {
     "clean": "npx rimraf node_modules",
@@ -24,6 +24,7 @@
     "format:check": "prettier --list-different src/**/*.js",
     "lint": "eslint src/**/*.js",
     "check": "npm run format:check && npm run lint",
+    "start": "node src/fmdl.js",
     "prepare": "npm run check",
     "release": "./pre-flight-tests && npm run clean && npm i && git tag $npm_package_version && git push && git push --tags && npm publish"
   },
@@ -37,6 +38,7 @@
       "es6": true
     },
     "rules": {
+      "no-console": "off",
       "no-use-before-define": "error"
     }
   },
