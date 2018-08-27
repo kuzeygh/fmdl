@@ -10,7 +10,13 @@ Confirmed working with `Node.js 8.x`. Has [issues](https://github.com/joeferner/
 
 ### Command Line
 
-Here are the available command line arguments:
+#### Installation
+
+```console
+npm i -g fmdl
+```
+
+#### Arguments
 
 | Argument       | Usage                                 | Default     |
 | -------------- | ------------------------------------- | ----------- |
@@ -20,7 +26,7 @@ Here are the available command line arguments:
 Each argument is passed in the form `--argument=value`. Here is an example:
 
 ```console
-npx fmdl --downloadFolder=/tmp/Courses --debug
+fmdl --downloadFolder=/tmp/Courses --debug
 ```
 
 ### API
