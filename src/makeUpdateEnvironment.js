@@ -27,13 +27,15 @@ const makeUpdateManual = ({ platform, port, certPath }) => ({
 });
 
 const makeUpdateWindows = ({ debug, port, certPath }) => {
+  const convertPathToWindows = path => path.replace(/\//g, "\\");
+  const windowsCertPath = convertPathToWindows(certPath);
+  const windowsSrcFolder = convertPathToWindows(__dirname);
   const updateEnvironment = (...args) =>
     makeRunCommand({ debug, command: "powershell" })(
       "-ExecutionPolicy Bypass",
-      "-File .\\src\\updateEnvironment.ps1",
+      `-File ${windowsSrcFolder}\\updateEnvironment.ps1`,
       args.join(" ")
     );
-  const windowsCertPath = certPath.replace(/\//g, "\\");
   const commonArgs = debug ? ["-Debug"] : [];
 
   return {
